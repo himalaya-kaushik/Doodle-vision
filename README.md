@@ -33,3 +33,4 @@
 
 ## Issues
 - Not an issue per say but currently the model stroke input is flipped, although it does not seem to affect the accuracy
+- Flower image was not being predicted. Issue: From my earlier analysis I found that on an average only 50 points were being used despite the max limit of 130. So, I capped the points limit to 50 fearing that increasing might lead to accuracy loss. Fix: Now as Dougles-Peuckers algo is working fine the max limit is updated to 130

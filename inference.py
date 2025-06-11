@@ -10,7 +10,7 @@ from tensorflow.keras.models import load_model
 MAX_SEQ_LEN = 130
 STROKE_FEATURES = 3
 IMG_SIZE = 28
-TARGET_STROKE_POINTS = 50  # Optimized based on training data analysis
+TARGET_STROKE_POINTS = 130  # Optimized based on training data analysis
 DEBUG_DIR = "debug_data"
 os.makedirs(DEBUG_DIR, exist_ok=True)
 
