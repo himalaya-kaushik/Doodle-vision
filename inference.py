@@ -24,51 +24,76 @@ model = load_model("best_hybrid_model_strokes_scaled.keras")
 
 def douglas_peucker_simplify(points, epsilon=2.0):
     """
-    Simplify stroke using Douglas-Peucker algorithm with epsilon=2.0
-    as used in QuickDraw preprocessing
+    Simplifies a stroke using the Douglas-Peucker algorithm.
+
+    Args:
+        points (list of [x, y, ...]): List of stroke points.
+        epsilon (float): Distance threshold for simplification.
+
+    Returns:
+        List of simplified points.
     """
     if len(points) <= 2:
         return points
 
-    def perpendicular_distance(point, line_start, line_end):
-        """Calculate perpendicular distance from point to line"""
-        if np.allclose(line_start[:2], line_end[:2]):
-            return np.linalg.norm(np.array(point[:2]) - np.array(line_start[:2]))
+    def perpendicular_distance(pt, line_start, line_end):
+        """
+        Computes perpendicular distance from a point to a line.
 
-        line_vec = np.array(line_end[:2]) - np.array(line_start[:2])
-        point_vec = np.array(point[:2]) - np.array(line_start[:2])
-        line_len = np.linalg.norm(line_vec)
+        Args:
+            pt (list): The point to measure from.
+            line_start (list): Start of the line segment.
+            line_end (list): End of the line segment.
 
-        if line_len == 0:
-            return np.linalg.norm(point_vec)
+        Returns:
+            float: Perpendicular distance.
+        """
+        p = np.array(pt[:2])
+        a = np.array(line_start[:2])
+        b = np.array(line_end[:2])
 
-        return abs(np.cross(line_vec, point_vec)) / line_len
+        # If line is degenerate (start == end), return Euclidean distance
+        if np.allclose(a, b):
+            return np.linalg.norm(p - a)
 
-    def recursive_simplify(points_subset):
-        if len(points_subset) <= 2:
-            return points_subset
+        # Vector projection formula for perpendicular distance
+        ab = b - a
+        ap = p - a
+        return np.abs(np.cross(ab, ap)) / np.linalg.norm(ab)
 
-        # Find point with maximum distance from line
-        dmax = 0
-        index = 0
-        start_point = points_subset[0]
-        end_point = points_subset[-1]
+    def simplify_segment(segment):
+        """
+        Recursively simplifies a segment of the stroke.
 
-        for i in range(1, len(points_subset) - 1):
-            d = perpendicular_distance(points_subset[i], start_point, end_point)
-            if d > dmax:
+        Args:
+            segment (list of points): The current segment to simplify.
+
+        Returns:
+            list: Simplified points for this segment.
+        """
+        if len(segment) <= 2:
+            return segment
+
+        start, end = segment[0], segment[-1]
+        max_dist = 0
+        index = -1
+
+        # Find the point with the maximum perpendicular distance
+        for i in range(1, len(segment) - 1):
+            dist = perpendicular_distance(segment[i], start, end)
+            if dist > max_dist:
+                max_dist = dist
                 index = i
-                dmax = d
 
-        # If max distance is greater than epsilon, recursively simplify
-        if dmax > epsilon:
-            left_results = recursive_simplify(points_subset[: index + 1])
-            right_results = recursive_simplify(points_subset[index:])
-            return left_results[:-1] + right_results
+        # If distance exceeds epsilon, recursively simplify
+        if max_dist > epsilon:
+            left = simplify_segment(segment[: index + 1])
+            right = simplify_segment(segment[index:])
+            return left[:-1] + right  # Avoid duplicating the middle point
         else:
-            return [start_point, end_point]
+            return [start, end]
 
-    return recursive_simplify(points)
+    return simplify_segment(points)
 
 
 def optimize_stroke_capture(strokes_list, target_points=TARGET_STROKE_POINTS):
