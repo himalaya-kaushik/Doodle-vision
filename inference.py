@@ -370,11 +370,11 @@ print("- Press 'c' to clear canvas")
 print("- Press 'ESC' to exit")
 
 while True:
-    # Display canvas with instructions
+    # === Display Updated Canvas ===
     display_canvas = canvas.copy()
-
-    # Add status information
     total_points = sum(len(stroke) for stroke in current_strokes)
+
+    # Show status info and instructions
     cv2.putText(
         display_canvas,
         f"Strokes: {len(current_strokes)}, Points: {total_points}",
@@ -393,48 +393,39 @@ while True:
         (100, 100, 100),
         1,
     )
-
     cv2.imshow("Improved Drawing App", display_canvas)
 
     key = cv2.waitKey(1) & 0xFF
 
-    if key == ord("p"):  # Predict
+    if key == ord("p"):  # === Predict ===
         if not current_strokes or all(len(stroke) <= 1 for stroke in current_strokes):
             print("No drawing detected! Please draw something first.")
             continue
 
         print("\n=== Processing Drawing ===")
-        print(
-            f"Input: {len(current_strokes)} strokes, {sum(len(s) for s in current_strokes)} total points"
-        )
+        print(f"Input: {len(current_strokes)} strokes, {total_points} total points")
 
-        # Step 1: Optimize stroke capture
+        # Step 1: Stroke optimization
         optimized_points = optimize_stroke_capture(
             current_strokes, TARGET_STROKE_POINTS
         )
         print(f"After optimization: {len(optimized_points)} points")
 
-        # Step 2: Preprocess strokes with improved scaling
+        # Step 2: Normalize and scale strokes
         stroke_input = preprocess_stroke_improved(optimized_points)
 
-        # Step 3: Process image
+        # Step 3: Extract image input from canvas
         img_input = process_image_corrected(canvas)
 
-        # # Step 4: Validation
-        # valid_stroke_points = np.count_nonzero(np.any(stroke_input != 0, axis=1))
-        # print(f"Valid stroke points for model: {valid_stroke_points}/{MAX_SEQ_LEN}")
+        # Step 4: Create visual debug summary
+        timestamp = datetime.now().strftime("%H%M%S")
+        debug_path = f"{DEBUG_DIR}/improved_debug_{timestamp}.png"
 
-        # if valid_stroke_points < 5:
-        #     print("⚠️  Drawing too simple - please add more detail!")
-        #     continue
-
-        # Step 5: Create comprehensive debug visualization
         plt.figure(figsize=(20, 5))
-
-        # Raw strokes
-        plt.subplot(1, 5, 1)
-        plt.title("Raw Input Strokes")
         colors = ["red", "blue", "green", "orange", "purple", "cyan", "magenta"]
+
+        # Subplot 1: Raw strokes
+        plt.subplot(1, 5, 1)
         for i, stroke in enumerate(current_strokes):
             if len(stroke) > 0:
                 stroke_arr = np.array(stroke)
@@ -442,27 +433,23 @@ while True:
                     stroke_arr[:, 0],
                     stroke_arr[:, 1],
                     color=colors[i % len(colors)],
-                    alpha=0.7,
-                    linewidth=2,
                     marker="o",
                     markersize=2,
+                    linewidth=2,
+                    alpha=0.7,
                 )
+        plt.title(f"Raw Input ({len(current_strokes)} strokes, {total_points} points)")
         plt.gca().set_aspect("equal")
-        plt.title(
-            f"Raw Input ({len(current_strokes)} strokes, {sum(len(s) for s in current_strokes)} points)"
-        )
 
-        # Optimized points
+        # Subplot 2: Optimized points
         plt.subplot(1, 5, 2)
-        plt.title("Optimized Points")
         if len(optimized_points) > 0:
             plt.plot(
                 optimized_points[:, 0],
                 optimized_points[:, 1],
                 "g-o",
-                alpha=0.7,
                 linewidth=2,
-                markersize=3,
+                alpha=0.7,
             )
             plt.scatter(
                 optimized_points[:, 0],
@@ -473,20 +460,19 @@ while True:
                 edgecolors="black",
                 linewidth=0.5,
             )
-        plt.gca().set_aspect("equal")
         plt.title(f"Optimized ({len(optimized_points)} points)")
+        plt.gca().set_aspect("equal")
 
-        # Processed strokes (after scaling to [-100,100])
+        # Subplot 3: Scaled strokes
         plt.subplot(1, 5, 3)
-        plt.title("Scaled Strokes [-100,100]")
         valid_mask = np.any(stroke_input != 0, axis=1)
         if np.any(valid_mask):
             plt.plot(
                 stroke_input[valid_mask, 0],
                 stroke_input[valid_mask, 1],
                 "b-",
-                alpha=0.7,
                 linewidth=2,
+                alpha=0.7,
             )
             plt.scatter(
                 stroke_input[valid_mask, 0],
@@ -495,77 +481,73 @@ while True:
                 cmap="RdYlBu",
                 s=20,
             )
-        plt.gca().set_aspect("equal")
+        plt.title("Scaled [-100,100]")
         plt.xlim(-110, 110)
         plt.ylim(-110, 110)
         plt.grid(True, alpha=0.3)
+        plt.gca().set_aspect("equal")
 
-        # Canvas image
+        # Subplot 4: Canvas image
         plt.subplot(1, 5, 4)
+        plt.imshow(cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY), cmap="gray")
         plt.title("Canvas Image")
-        canvas_gray = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)
-        plt.imshow(canvas_gray, cmap="gray")
         plt.axis("off")
 
-        # Processed image
+        # Subplot 5: Final model input image
         plt.subplot(1, 5, 5)
-        plt.title("Model Input Image")
         plt.imshow(img_input.squeeze(), cmap="gray")
+        plt.title("Model Input Image")
         plt.axis("off")
 
-        timestamp = datetime.now().strftime("%H%M%S")
         plt.tight_layout()
-        plt.savefig(
-            f"{DEBUG_DIR}/improved_debug_{timestamp}.png", dpi=150, bbox_inches="tight"
-        )
+        plt.savefig(debug_path, dpi=150, bbox_inches="tight")
         plt.close()
+        print(f"Debug visualization saved: {debug_path}")
 
-        print(f"Debug visualization saved: {DEBUG_DIR}/improved_debug_{timestamp}.png")
-
-        # Step 6: Make prediction
+        # Step 5: Run model prediction
         stroke_input_batch = np.expand_dims(stroke_input, axis=0)
         img_input_batch = np.expand_dims(img_input, axis=0)
 
         print("Running model inference...")
         predictions = model.predict([stroke_input_batch, img_input_batch], verbose=0)
 
-        # Get top 5 predictions
+        # Step 6: Show top-5 predictions
         top5_indices = np.argsort(predictions[0])[-5:][::-1]
         top5_probs = predictions[0][top5_indices]
 
-        print(f"\n=== Top 5 Predictions ===")
+        print("\n=== Top 5 Predictions ===")
         for i, (idx, prob) in enumerate(zip(top5_indices, top5_probs)):
-            confidence = prob * 100
             class_name = class_names[idx] if idx < len(class_names) else f"Class_{idx}"
-            print(f"{i + 1}. {class_name}: {confidence:.1f}%")
+            print(f"{i + 1}. {class_name}: {prob * 100:.1f}%")
 
-        # Enhanced confidence assessment
-        best_confidence = top5_probs[0] * 100
-        if best_confidence > 50:
-            status = "🎯 High confidence"
-        elif best_confidence > 30:
-            status = "✅ Good confidence"
-        elif best_confidence > 15:
-            status = "⚠️  Moderate confidence"
-        else:
-            status = "❌ Low confidence"
-
+        # Step 7: Confidence rating
         best_class = (
             class_names[top5_indices[0]]
             if top5_indices[0] < len(class_names)
             else f"Class_{top5_indices[0]}"
         )
-        print(f"\n{status}: {best_class} ({best_confidence:.1f}%)")
+        best_conf = top5_probs[0] * 100
 
-        # Check coordinate ranges for validation
-        coord_range_x = np.ptp(stroke_input[valid_mask, 0]) if np.any(valid_mask) else 0
-        coord_range_y = np.ptp(stroke_input[valid_mask, 1]) if np.any(valid_mask) else 0
-        print(f"Coordinate ranges - X: {coord_range_x:.1f}, Y: {coord_range_y:.1f}")
+        if best_conf > 50:
+            status = "🎯 High confidence"
+        elif best_conf > 30:
+            status = "✅ Good confidence"
+        elif best_conf > 15:
+            status = "⚠️  Moderate confidence"
+        else:
+            status = "❌ Low confidence"
 
-        if best_confidence < 15:
-            print("💡 Suggestion: Try drawing more clearly or add more detail")
+        print(f"\n{status}: {best_class} ({best_conf:.1f}%)")
 
-    elif key == ord("c"):  # Clear
+        # Step 8: Coordinate coverage info
+        if np.any(valid_mask):
+            range_x = np.ptp(stroke_input[valid_mask, 0])
+            range_y = np.ptp(stroke_input[valid_mask, 1])
+            print(f"Coordinate ranges - X: {range_x:.1f}, Y: {range_y:.1f}")
+            if best_conf < 15:
+                print("💡 Suggestion: Try drawing more clearly or add more detail")
+
+    elif key == ord("c"):  # === Clear canvas ===
         canvas.fill(0)
         current_strokes = []
         print("Canvas cleared!")
