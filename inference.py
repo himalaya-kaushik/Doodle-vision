@@ -165,23 +165,28 @@ def optimize_stroke_capture(strokes_list, target_points=TARGET_STROKE_POINTS):
 
 def preprocess_stroke_improved(stroke_data, max_len=MAX_SEQ_LEN):
     """
-    Optimized stroke preprocessing: centers and scales strokes to [-100, 100] range
+    Preprocesses a stroke sequence by centering and scaling coordinates
+    to the [-100, 100] range, and padding/truncating to max_len.
+
+    Args:
+        stroke_data (list or ndarray): List of [x, y, pen_state] points.
+        max_len (int): Desired sequence length for output.
+
+    Returns:
+        np.ndarray: Preprocessed stroke of shape (max_len, STROKE_FEATURES)
     """
     if len(stroke_data) == 0:
+        # Return padded zeros if input is empty
         return np.zeros((max_len, STROKE_FEATURES), dtype=np.float32)
 
+    # Convert input to float array and copy to avoid mutation
     stroke = np.array(stroke_data, dtype=np.float32).copy()
 
-    # # Step 1: Convert to absolute coordinate space (if not already)
-    # if len(stroke) > 1 and np.any(np.diff(stroke[:, 0]) != 0):
-    #     stroke[:, 0] = np.cumsum(stroke[:, 0])
-    #     stroke[:, 1] = np.cumsum(stroke[:, 1])
-
-    # Step 2: Center the coordinates
+    # Step 1: Center the coordinates at origin
     stroke[:, 0] -= np.mean(stroke[:, 0])
     stroke[:, 1] -= np.mean(stroke[:, 1])
 
-    # Step 3: Scale to fit within [-100, 100] range
+    # Step 2: Scale uniformly to fit within [-100, 100] range
     max_x = np.max(np.abs(stroke[:, 0]))
     max_y = np.max(np.abs(stroke[:, 1]))
     max_extent = max(max_x, max_y)
@@ -191,11 +196,12 @@ def preprocess_stroke_improved(stroke_data, max_len=MAX_SEQ_LEN):
         stroke[:, 0] *= scale
         stroke[:, 1] *= scale
 
-    # Step 4: Pad or truncate
+    # Step 3: Pad with zeros or truncate to fixed length
     if len(stroke) > max_len:
         stroke = stroke[:max_len]
     else:
-        pad = np.zeros((max_len - len(stroke), STROKE_FEATURES), dtype=np.float32)
+        pad_len = max_len - len(stroke)
+        pad = np.zeros((pad_len, STROKE_FEATURES), dtype=np.float32)
         stroke = np.vstack([stroke, pad])
 
     return stroke
@@ -374,6 +380,7 @@ while True:
     )
 
     cv2.imshow("Improved Drawing App", display_canvas)
+
     key = cv2.waitKey(1) & 0xFF
 
     if key == ord("p"):  # Predict
@@ -381,7 +388,7 @@ while True:
             print("No drawing detected! Please draw something first.")
             continue
 
-        print(f"\n=== Processing Drawing ===")
+        print("\n=== Processing Drawing ===")
         print(
             f"Input: {len(current_strokes)} strokes, {sum(len(s) for s in current_strokes)} total points"
         )
