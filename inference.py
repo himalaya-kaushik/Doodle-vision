@@ -98,50 +98,59 @@ def douglas_peucker_simplify(points, epsilon=2.0):
 
 def optimize_stroke_capture(strokes_list, target_points=TARGET_STROKE_POINTS):
     """
-    Efficiently capture and process strokes to match training data patterns
+    Simplifies and resamples strokes to match the format of training data.
+
+    Steps:
+    1. Applies Douglas-Peucker simplification to each stroke.
+    2. Resamples to retain important points (start, end, pen state changes).
+    3. Ensures the final stroke sequence fits the target point budget.
+
+    Args:
+        strokes_list (list of list of [x, y, pen_state]): List of strokes.
+        target_points (int): Desired number of total stroke points.
+
+    Returns:
+        np.ndarray: A float32 array of shape (<=target_points, STROKE_FEATURES)
     """
     all_points = []
 
-    # Step 1: Apply Douglas-Peucker simplification to each stroke
+    # Step 1: Simplify each stroke using Douglas-Peucker
     for stroke in strokes_list:
         if len(stroke) < 2:
             continue
-
-        # Simplify stroke using QuickDraw standard epsilon
         simplified = douglas_peucker_simplify(stroke, epsilon=2.0)
         all_points.extend(simplified)
 
     if len(all_points) == 0:
+        # Return zeroed-out array if no valid points found
         return np.zeros((MAX_SEQ_LEN, STROKE_FEATURES), dtype=np.float32)
 
     all_points = np.array(all_points, dtype=np.float32)
 
-    # Step 2: Intelligent resampling if too many points
+    # Step 2: Downsample intelligently if too many points
     if len(all_points) > target_points:
-        # Priority-based selection: keep start, end, and pen state transitions
-        important_indices = [0]  # Always keep first point
+        important_indices = [0]  # Always keep the first point
 
-        # Keep pen state transitions (stroke boundaries)
+        # Keep points where pen state changes (stroke breaks)
         for i in range(1, len(all_points)):
             if all_points[i, 2] != all_points[i - 1, 2]:
                 important_indices.append(i)
 
-        # Add last point
-        if len(all_points) > 1:
-            important_indices.append(len(all_points) - 1)
+        # Always keep the last point
+        important_indices.append(len(all_points) - 1)
 
-        # Remove duplicates and sort
-        important_indices = sorted(list(set(important_indices)))
+        # Deduplicate and sort
+        important_indices = sorted(set(important_indices))
 
-        # If still too many, subsample evenly
         if len(important_indices) > target_points:
+            # Too many important points: uniform subsampling
             step = len(important_indices) // target_points
             important_indices = important_indices[::step][:target_points]
         elif len(important_indices) < target_points:
-            # Fill remaining slots with evenly distributed points
+            # Not enough: fill in from other points uniformly
             remaining = target_points - len(important_indices)
             all_indices = set(range(len(all_points)))
-            available = sorted(list(all_indices - set(important_indices)))
+            available = sorted(all_indices - set(important_indices))
 
             if available and remaining > 0:
                 step = max(1, len(available) // remaining)
