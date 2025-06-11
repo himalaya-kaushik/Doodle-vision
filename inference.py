@@ -209,47 +209,62 @@ def preprocess_stroke_improved(stroke_data, max_len=MAX_SEQ_LEN):
 
 def process_image_corrected(canvas):
     """
-    Process drawing canvas to model-compatible image format
+    Processes a drawing canvas to produce a model-compatible grayscale image.
+
+    Steps:
+    1. Convert to grayscale.
+    2. Extract the drawing region using contours.
+    3. Crop the image to the bounding box with padding.
+    4. Pad to square shape (if needed).
+    5. Resize to model input size and normalize.
+
+    Args:
+        canvas (np.ndarray): Input BGR image of the drawing (usually from OpenCV canvas).
+
+    Returns:
+        np.ndarray: Preprocessed image of shape (IMG_SIZE, IMG_SIZE, 1), float32 in [0, 1].
     """
-    # Convert to grayscale
+    # Step 1: Convert to grayscale
     gray = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)
 
-    # Find drawing content
+    # Step 2: Extract contours of non-background pixels
     _, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+    # If no contours found, return blank image
     if not contours:
         return np.zeros((IMG_SIZE, IMG_SIZE, 1), dtype=np.float32)
 
-    # Get bounding box
+    # Step 3: Compute bounding box around all contours
     x, y, w, h = cv2.boundingRect(np.vstack(contours))
 
-    # Add padding
+    # Step 4: Add padding (clamped to canvas size)
     padding = 20
     x = max(0, x - padding)
     y = max(0, y - padding)
     w = min(canvas.shape[1] - x, w + 2 * padding)
     h = min(canvas.shape[0] - y, h + 2 * padding)
 
-    # Crop to content
+    # Step 5: Crop the region of interest
     cropped = gray[y : y + h, x : x + w]
 
-    # Make square by padding shorter dimension
+    # Step 6: Pad to make it square (centered content)
     if w > h:
-        pad_h = (w - h) // 2
+        pad = (w - h) // 2
         cropped = np.pad(
-            cropped, ((pad_h, pad_h), (0, 0)), mode="constant", constant_values=0
+            cropped, ((pad, pad), (0, 0)), mode="constant", constant_values=0
         )
     elif h > w:
-        pad_w = (h - w) // 2
+        pad = (h - w) // 2
         cropped = np.pad(
-            cropped, ((0, 0), (pad_w, pad_w)), mode="constant", constant_values=0
+            cropped, ((0, 0), (pad, pad)), mode="constant", constant_values=0
         )
 
-    # Resize to 28x28 and normalize
+    # Step 7: Resize to target model input size (28 x 28) and normalize to [0, 1]
     resized = cv2.resize(cropped, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_AREA)
-    normalized = resized.astype("float32") / 255.0
+    normalized = resized.astype(np.float32) / 255.0
 
+    # Step 8: Add channel dimension for grayscale
     return np.expand_dims(normalized, axis=-1)
 
 
