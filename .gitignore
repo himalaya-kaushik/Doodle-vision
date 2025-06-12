@@ -2,3 +2,9 @@
 .venv/*
 debug/*
 */__pycache__/*
+New_architectures/.ipynb_checkpoints/
+inference/.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+**/.ipynb_checkpoints/
+New_architectures/strokes_data/
+New_architectures/image_folder/
