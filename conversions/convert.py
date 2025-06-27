@@ -1,10 +1,10 @@
-import tensorflow as tf
+# import tensorflow as tf
 
-# Load your native Keras model
-model = tf.keras.models.load_model("best_hybrid_model_strokes_scaled.keras")
+# # Load your native Keras model
+# model = tf.keras.models.load_model("best_hybrid_model_strokes_scaled.keras")
 
-# Export it to SavedModel format (folder)
-model.export("saved_model_format")  # This creates a directory
+# # Export it to SavedModel format (folder)
+# model.export("saved_model_format")  # This creates a directory
 
 
 """
@@ -15,3 +15,11 @@ pip install numpy==1.26.4
 python -m tf2onnx.convert --saved-model saved_model_format --output model.onnx
 
 """
+
+from onnxruntime.quantization import QuantType, quantize_dynamic
+
+quantize_dynamic(
+    model_input="best_hybrid_model_strokes_scaled.onnx",
+    model_output="best_hybrid_model_strokes_scaled_quant.onnx",
+    weight_type=QuantType.QInt8,  # or QuantType.QUInt8
+)
