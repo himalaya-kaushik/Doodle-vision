@@ -1,5 +1,5 @@
 .DS_Store
-*/.venv/*
+.venv
 debug/*
 */__pycache__/*
 New_architectures/.ipynb_checkpoints/
